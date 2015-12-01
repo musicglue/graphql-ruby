@@ -11,6 +11,9 @@ module GraphQL
       hash = {
         "message" => message,
       }
+
+      hash.merge!({ 'backtrace' => backtrace }) if self.class.backtrace_enabled
+
       if ast_node.nil?
         hash["locations"] = []
       else
@@ -22,6 +25,10 @@ module GraphQL
         ]
       end
       hash
+    end
+    
+    class << self
+      attr_accessor :backtrace_enabled
     end
   end
 end
