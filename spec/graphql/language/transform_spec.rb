@@ -29,6 +29,7 @@ describe GraphQL::Language::Transform do
       # assign fragments:
       fragment personInfo on Person {
         birthdate, name # with fields
+        hobbies(names: [])
       }
 
       fragment petInfo on Pet { isHousebroken, species } # all on one line
@@ -88,7 +89,7 @@ describe GraphQL::Language::Transform do
   end
 
   it 'transforms fields' do
-    res = get_result(%|best_pals: friends(first: 3, coolnessLevel: SO_COOL, query: {nice: {very: true}})|, parse: :field)
+    res = get_result(%|best_pals: friends(first: 3, coolnessLevel: SO_COOL, query: {nice: {very: true}}, emptyStr: "")|, parse: :field)
     assert_equal(GraphQL::Language::Nodes::Field, res.class)
     assert_equal(1, res.line)
     assert_equal(1, res.col)
@@ -117,5 +118,10 @@ describe GraphQL::Language::Transform do
     res = get_result("@someFlag", parse: :directive)
     assert_equal("someFlag", res.name)
     assert_equal([], res.arguments, 'gets [] if no args')
+  end
+
+  it 'transforms unnamed operations' do
+    assert_equal(1, get_result("query { me }").parts.length)
+    assert_equal(1, get_result("mutation { touch }").parts.length)
   end
 end

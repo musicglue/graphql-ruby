@@ -1,4 +1,3 @@
-require 'graphql/query/base_execution/selected_object_resolution'
 require 'graphql/query/base_execution/value_resolution'
 
 module GraphQL
@@ -18,21 +17,15 @@ module GraphQL
       end
 
       def field_resolution
-        get_class :FieldResolution
+        self.class::FieldResolution
       end
 
       def operation_resolution
-        get_class :OperationResolution
+        self.class::OperationResolution
       end
 
       def selection_resolution
-        get_class :SelectionResolution
-      end
-
-      private
-
-      def get_class(class_name)
-        self.class.const_get(class_name)
+        self.class::SelectionResolution
       end
     end
   end

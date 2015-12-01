@@ -6,9 +6,67 @@
 
 ### Bug fixes
 
-## 0.9.3 (15 Sept 2015)
+## 0.10.3 (11 Nov 2015)
 
-### Breaking changes & deprecations
+### New features
+
+- Support root-level `subscription` type
+
+### Bug fixes
+
+- Require Set for Schema::Printer
+
+## 0.10.2 (10 Nov 2015)
+
+### Bug fixes
+
+- Handle blank strings in queries
+- Raise if a field is configured without a proper type #61
+
+## 0.10.1 (22 Oct 2015)
+
+### Bug fixes
+
+- Properly merge fields on fragments within fragments
+- Properly delegate enumerable-ish methods on `Arguments` #56
+- Fix & refactor literal coersion & validation #53
+
+## 0.10.0 (17 Oct 2015)
+
+### New features
+
+- Scalars can have distinct `coerce_input` and `coerce_result` methods #48
+- Operations don't require a name #54
+
+### Bug fixes
+
+- Big refactors and fixes to variables and arguments:
+  - Correctly apply argument default values
+  - Correctly apply variable default values
+  - Raise at execution-time if non-null variables are missing
+  - Incoming values are coerced to their proper types before execution
+
+## 0.9.5 (1 Oct 2015)
+
+### New features
+
+- Add `Schema#middleware` to wrap field access
+- Add `RescueMiddleware` to handle errors during field execution
+- Add `Schema::Printer` for printing the schema definition #45
+
+### Bug fixes
+
+## 0.9.4 (22 Sept 2015)
+
+### New features
+
+- Fields can return `GraphQL::ExecutionError`s to add errors to the response
+
+### Bug fixes
+
+- Fix resolution of union types in some queries #41
+
+## 0.9.3 (15 Sept 2015)
 
 ### New features
 
@@ -22,10 +80,6 @@
 - Find variable usages inside fragments during static validation
 
 ## 0.9.2, 0.9.1 (10 Sept 2015)
-
-### Breaking changes & deprecations
-
-### New features
 
 ### Bug fixes
 
@@ -43,13 +97,8 @@
 
 - `GraphQL::Query::ParallelExecution` has been extracted to [`graphql-parallel`](https://github.com/rmosolgo/graphql-parallel)
 
-### New features
-
-### Bug fixes
 
 ## 0.8.0 (4 Sept 2015)
-
-### Breaking changes & deprecations
 
 ### New features
 
@@ -64,10 +113,6 @@
 
 ## 0.7.1 (27 Aug 2015)
 
-### Breaking changes & deprecations
-
-### New features
-
 ### Bug fixes
 
 - Merge nested results from different fragments instead of using the latest one only
@@ -78,8 +123,6 @@
 
 - Query keyword argument `params:` was removed, use `variables:` instead.
 
-### New features
-
 ### Bug fixes
 
 - `@skip` has precedence over `@include`
@@ -87,17 +130,11 @@
 
 ## 0.6.2 (20 Aug 2015)
 
-### Breaking changes & deprecations
-
-### New features
-
 ### Bug fixes
 
 - Fix whitespace parsing in input objects
 
 ## 0.6.1 (16 Aug 2015)
-
-### Breaking changes & deprecations
 
 ### New features
 
@@ -136,5 +173,3 @@
 ### New features
 
 - Add new definition API #18
-
-### Bug fixes

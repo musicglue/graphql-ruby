@@ -1,5 +1,7 @@
 require_relative './dairy_data'
 
+class NoSuchDairyError < StandardError; end
+
 EdibleInterface = GraphQL::InterfaceType.define do
   name "Edible"
   description "Something you can eat, yum"
@@ -30,18 +32,20 @@ CheeseType = GraphQL::ObjectType.define do
   field :id, !types.Int, "Unique identifier"
   field :flavor, !types.String, "Kind of Cheese"
 
-  # Or can define by block:
-  field :source do
-    type(!DairyAnimalEnum)
-    description("Animal which produced the milk for this cheese")
-  end
+  field :source, !DairyAnimalEnum,
+    "Animal which produced the milk for this cheese"
 
-  field :similarCheeses do
-    type -> { CheeseType }
-    description("Cheeses like this one")
+  # Or can define by block:
+  field :similarCheese, -> { CheeseType }, "Cheeses like this one" do
     argument :source, !types[!DairyAnimalEnum]
     resolve -> (t, a, c) {
-      CHEESES.values.find { |c| c.source == a["source"] }
+      # get the strings out:
+      sources = a["source"]
+      if sources.include?("YAK")
+        raise NoSuchDairyError.new("No cheeses are made from Yak milk!")
+      else
+        CHEESES.values.find { |c| sources.include?(c.source) }
+      end
     }
   end
 
@@ -61,6 +65,9 @@ MilkType = GraphQL::ObjectType.define do
   field :fatContent, !types.Float, "Percentage which is milkfat"
   field :flavors, types[types.String], "Chocolate, Strawberry, etc" do
     argument :limit, types.Int
+    resolve -> (milk, args, ctx) {
+      args[:limit] ? milk.flavors.first(args[:limit]) : milk.flavors
+    }
   end
 end
 
@@ -84,11 +91,22 @@ DairyProductUnion = GraphQL::UnionType.define do
   possible_types [MilkType, CheeseType]
 end
 
+CowType = GraphQL::ObjectType.define do
+  name 'Cow'
+  description 'A farm where milk is harvested and cheese is produced'
+  field :id, !types.ID
+  field :name, types.String
+  field :last_produced_dairy, DairyProductUnion
+end
+
 DairyProductInputType = GraphQL::InputObjectType.define {
   name "DairyProductInput"
   description "Properties for finding a dairy product"
-  input_field :source, DairyAnimalEnum
-  input_field :fatContent, types.Float
+  input_field :source, !DairyAnimalEnum do
+    description "Where it came from"
+  end
+
+  input_field :fatContent, types.Float, "How much fat it has"
 }
 
 
@@ -101,7 +119,11 @@ class FetchField
       description(desc)
       argument :id, id_type
 
-      resolve -> (t, a, c) { data[a["id"].to_i] }
+      resolve -> (t, a, c) {
+        id_string = a["id"].to_s # Cheese has Int type, Milk has ID type :(
+        id, item = data.find { |id, item| id.to_s == id_string }
+        item
+      }
     end
   end
 end
@@ -142,15 +164,17 @@ QueryType = GraphQL::ObjectType.define do
   field :dairy, field: SingletonField.create(type: DairyType, data: DAIRY)
   field :fromSource, &SourceFieldDefn
   field :favoriteEdible, &FavoriteFieldDefn
+  field :cow, field: SingletonField.create(type: CowType, data: COW)
   field :searchDairy do
     description "Find dairy products matching a description"
     type !DairyProductUnion
-    argument :product, DairyProductInputType
-    resolve -> (t, a, c) {
+    # This is a list just for testing 😬
+    argument :product, types[DairyProductInputType], default_value: [{"source" => "SHEEP"}]
+    resolve -> (t, args, c) {
+      source = args["product"][0][:source] # String or Sym is ok
       products = CHEESES.values + MILKS.values
-      source =  a["product"][:source] # String or sym is ok
       if !source.nil?
-        products = products.select { |p| p.source == source }
+        products = products.select { |pr| pr.source == source }
       end
       products.first
     }
@@ -192,10 +216,22 @@ MutationType = GraphQL::ObjectType.define do
     argument :input, !ReplaceValuesInputType
     resolve -> (o, args, ctx) {
       GLOBAL_VALUES.clear
-      GLOBAL_VALUES += args[:input][:values]
+      GLOBAL_VALUES.push(*args[:input][:values])
       GLOBAL_VALUES
     }
   end
 end
 
-DummySchema = GraphQL::Schema.new(query: QueryType, mutation: MutationType)
+SubscriptionType = GraphQL::ObjectType.define do
+  name "Subscription"
+  field :test, types.String do
+    resolve -> (o, a, c) { "Test" }
+  end
+end
+
+DummySchema = GraphQL::Schema.new(
+  query: QueryType,
+  mutation: MutationType,
+  subscription: SubscriptionType,
+)
+DummySchema.rescue_from(NoSuchDairyError) { |err| err.message  }

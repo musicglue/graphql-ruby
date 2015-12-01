@@ -131,5 +131,95 @@ describe GraphQL::Query::Executor do
         assert_raises(RuntimeError) { result }
       end
     end
+
+    describe "if the schema has a rescue handler" do
+      before do
+        schema.rescue_from(RuntimeError) { "Error was handled!" }
+      end
+
+      after do
+        # remove the handler from the middleware:
+        schema.remove_handler(RuntimeError)
+      end
+
+      it "adds to the errors key" do
+        expected = {
+          "data" => {"error" => nil},
+          "errors"=>[
+            {
+              "message"=>"Error was handled!",
+              "locations" => [{"line"=>1, "column"=>17}]
+            }
+          ]
+        }
+        assert_equal(expected, result)
+      end
+    end
+  end
+
+  describe "variable coercion" do
+    describe "for unspecified with default" do
+      let(:query_string) {%| query Q($limit: Int = 2) { milk(id: 1) { flavors(limit: $limit) } } |}
+
+      it "uses the default value" do
+        expected = {
+          "data" => {
+            "milk" => {
+              "flavors" => ["Natural", "Chocolate"],
+            }
+          }
+        }
+        assert_equal(expected, result)
+      end
+    end
+
+    describe "for input object type" do
+      let(:variables) { {"input" => [{ "source" => "SHEEP" }]} }
+      let(:query_string) {%| query Q($input: [DairyProductInput]) { searchDairy(product: $input) { __typename, ... on Cheese { id, source } } } |}
+      it "uses the default value" do
+        expected = {
+          "data" => {
+            "searchDairy" => {
+              "__typename" => "Cheese",
+              "id" => 3,
+              "source" => "SHEEP"
+            }
+          }
+        }
+        assert_equal(expected, result)
+      end
+    end
+
+    describe "for required input object fields" do
+      let(:variables) { {"input" => {} } }
+      let(:query_string) {%| mutation M($input: ReplaceValuesInput!) { replaceValues(input: $input) } |}
+      it "returns a variable validation error" do
+        expected = {
+          "errors"=>[
+            {
+              "message" => "Variable input of type ReplaceValuesInput! was provided invalid value {}",
+              "locations" => [{"line"=>1, "column"=>14}]
+            }
+          ]
+        }
+        assert_equal(expected, result)
+      end
+    end
+
+    describe "for input objects with unknown keys in value" do
+      let(:variables) { {"input" => [{ "foo" => "bar" }]} }
+      let(:query_string) {%| query Q($input: [DairyProductInput]) { searchDairy(product: $input) { __typename, ... on Cheese { id, source } } } |}
+      it "returns a variable validation error" do
+        expected = {
+          "errors"=>[
+            {
+              "message" => "Variable input of type [DairyProductInput] was provided invalid value [{\"foo\":\"bar\"}]",
+              "locations" => [{"line"=>1, "column"=>11}]
+            }
+          ]
+        }
+        assert_equal(expected, result)
+      end
+    end
   end
 end

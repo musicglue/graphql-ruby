@@ -1,27 +1,39 @@
 # A GraphQL schema which may be queried with {GraphQL::Query}.
 class GraphQL::Schema
+  extend Forwardable
+
   DIRECTIVES = [GraphQL::Directive::SkipDirective, GraphQL::Directive::IncludeDirective]
   DYNAMIC_FIELDS = ["__type", "__typename", "__schema"]
 
-  attr_reader :query, :mutation, :directives, :static_validator
+  attr_reader :query, :mutation, :subscription, :directives, :static_validator
   # Override these if you don't want the default executor:
-  attr_accessor :query_execution_strategy, :mutation_execution_strategy
+  attr_accessor :query_execution_strategy,
+    :mutation_execution_strategy,
+    :subscription_execution_strategy
 
+  # @return [Array<#call>] Middlewares suitable for MiddlewareChain, applied to fields during execution
+  attr_reader :middleware
 
   # @param query [GraphQL::ObjectType]  the query root for the schema
-  # @param mutation [GraphQL::ObjectType, nil] the mutation root for the schema
-  def initialize(query:, mutation: nil)
+  # @param mutation [GraphQL::ObjectType] the mutation root for the schema
+  # @param subscription [GraphQL::ObjectType] the subscription root for the schema
+  def initialize(query:, mutation: nil, subscription: nil)
     @query    = query
     @mutation = mutation
+    @subscription = subscription
     @directives = DIRECTIVES.reduce({}) { |m, d| m[d.name] = d; m }
     @static_validator = GraphQL::StaticValidation::Validator.new(schema: self)
+    @rescue_middleware = GraphQL::Schema::RescueMiddleware.new
+    @middleware = [@rescue_middleware]
     # Default to the built-in execution strategy:
     self.query_execution_strategy = GraphQL::Query::SerialExecution
     self.mutation_execution_strategy = GraphQL::Query::SerialExecution
+    self.subscription_execution_strategy = GraphQL::Query::SerialExecution
   end
 
-  # A `{ name => type }` hash of types in this schema
-  # @return [Hash]
+  def_delegators :@rescue_middleware, :rescue_from, :remove_handler
+
+  # @return [GraphQL::Schema::TypeMap] `{ name => type }` pairs of types in this schema
   def types
     @types ||= TypeReducer.find_all([query, mutation, GraphQL::Introspection::SchemaType].compact)
   end
@@ -51,6 +63,10 @@ class GraphQL::Schema
     end
   end
 
+  def type_from_ast(ast_node)
+    GraphQL::Schema::TypeExpression.new(self, ast_node).type
+  end
+
   class InvalidTypeError < StandardError
     def initialize(type, errors)
       super("Type #{type.respond_to?(:name) ? type.name :  "Unnamed type" } is invalid: #{errors.join(", ")}")
@@ -61,6 +77,9 @@ end
 require 'graphql/schema/each_item_validator'
 require 'graphql/schema/field_validator'
 require 'graphql/schema/implementation_validator'
+require 'graphql/schema/middleware_chain'
+require 'graphql/schema/rescue_middleware'
+require 'graphql/schema/type_expression'
 require 'graphql/schema/type_reducer'
 require 'graphql/schema/type_map'
 require 'graphql/schema/type_validator'

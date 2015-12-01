@@ -5,20 +5,21 @@ describe GraphQL::StaticValidation::ArgumentLiteralsAreCompatible do
     query getCheese {
       cheese(id: "aasdlkfj") { source }
       cheese(id: 1) { source @skip(if: {id: 1})}
-      yakSource: searchDairy(product: {source: YAK, fatContent: 1.1}) { source }
-      badSource: searchDairy(product: {source: 1.1}) { source }
+      yakSource: searchDairy(product: [{source: YAK, fatContent: 1.1}]) { source }
+      badSource: searchDairy(product: [{source: 1.1}]) { source }
+      missingSource: searchDairy(product: [{fatContent: 1.1}]) { source }
     }
 
     fragment cheeseFields on Cheese {
-      similarCheeses(source: 4.5)
+      similarCheese(source: 4.5)
     }
   |)}
 
   let(:validator) { GraphQL::StaticValidation::Validator.new(schema: DummySchema, rules: [GraphQL::StaticValidation::ArgumentLiteralsAreCompatible]) }
   let(:errors) { validator.validate(document) }
 
-  it 'finds undefined arguments to fields and directives' do
-    assert_equal(3, errors.length)
+  it 'finds undefined or missing-required arguments to fields and directives' do
+    assert_equal(5, errors.length)
 
     query_root_error = {
       "message"=>"Argument id on Field 'cheese' has an invalid value",
@@ -26,15 +27,27 @@ describe GraphQL::StaticValidation::ArgumentLiteralsAreCompatible do
     }
     assert_includes(errors, query_root_error)
 
+    directive_error = {
+      "message"=>"Argument if on Directive 'skip' has an invalid value",
+      "locations"=>[{"line"=>4, "column"=>31}]
+    }
+    assert_includes(errors, directive_error)
+
     input_object_error = {
-      "message"=>"Argument product on Field 'searchDairy' has an invalid value",
+      "message"=>"Argument product on Field 'badSource' has an invalid value",
       "locations"=>[{"line"=>6, "column"=>7}]
     }
     assert_includes(errors, input_object_error)
 
+    missing_required_field_error = {
+      "message"=>"Argument product on Field 'missingSource' has an invalid value",
+      "locations"=>[{"line"=>7, "column"=>7}]
+    }
+    assert_includes(errors, missing_required_field_error)
+
     fragment_error = {
-      "message"=>"Argument source on Field 'similarCheeses' has an invalid value",
-      "locations"=>[{"line"=>10, "column"=>7}]
+      "message"=>"Argument source on Field 'similarCheese' has an invalid value",
+      "locations"=>[{"line"=>11, "column"=>7}]
     }
     assert_includes(errors, fragment_error)
   end

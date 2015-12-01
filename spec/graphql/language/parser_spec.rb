@@ -22,6 +22,9 @@ describe GraphQL::Language::Parser do
         ... family # background info, of course
       }
     }
+    subscription watchStuff {
+      field, otherField
+    }
 
     # a fragment:
     fragment family on Species {
@@ -41,8 +44,9 @@ describe GraphQL::Language::Parser do
   it 'parses operation definitions' do
     assert(parser.operation_definition.parse_with_debug(%|{id, name, ...people}|), "just a selection")
     assert(parser.operation_definition.parse_with_debug(%|query personStuff {id, name, ...people, ... stuff}|), "named fetch")
-    assert(parser.operation_definition.parse_with_debug(%|query personStuff @flagDirective {id, name, ...people}|), "with a directive")
-    assert(parser.operation_definition.parse_with_debug(%|mutation changeStuff($stuff: Int = 1, $things: [SomeType]!) {id, name, ...people}|), "mutation with arguments")
+    assert(parser.operation_definition.parse_with_debug(%|subscription personStuff @flagDirective {id, name, ...people}|), "with a directive")
+    assert(parser.operation_definition.parse_with_debug(%|mutation changeStuff($stuff: Int = 1 $things: [SomeType]! = [{something: 1}, {something: 2}], $another: Sometype = {something: 3}) { id }|), "mutation with arguments")
+    assert(parser.operation_definition.parse_with_debug(%|mutation { id }|), "unnamed")
   end
 
   it 'parses fragment definitions' do
@@ -67,7 +71,7 @@ describe GraphQL::Language::Parser do
     assert(parser.field.parse_with_debug(%|myField { name, id }|), 'gets subselections')
     assert(parser.field.parse_with_debug(%{myAlias: myField}), 'gets an alias')
     assert(parser.field.parse_with_debug(%{myField(intKey: 1, floatKey: 1.1e5)}), 'gets arguments')
-    assert(parser.field.parse_with_debug('myAlias: myField(stringKey: "\"my_string\"", boolKey: false, objKey: { key : true }, otherObjKey: {key: true})'), 'gets alias and arguments')
+    assert(parser.field.parse_with_debug('myAlias: myField(stringKey: "\"my_string\"", emptyStringKey: "", boolKey: false, objKey: { key : true }, otherObjKey: {key: true})'), 'gets alias and arguments')
     assert(parser.field.parse_with_debug(%|myField @withFlag, @skip(if: true) { name, id }|), 'gets with directive')
   end
 
@@ -108,6 +112,7 @@ describe GraphQL::Language::Parser do
 
     it 'gets arrays' do
       assert(parser.value.parse_with_debug('[true, 1, "my string", -5.123e56]'), 'array of values')
+      assert(parser.value.parse_with_debug('[ -5.123e56, $myVar ]'), 'array of values with whitespace')
       assert(parser.value.parse_with_debug('[]'), 'empty array')
       assert(parser.value.parse_with_debug('[[true, 1], ["my string", -5.123e56]]'), 'array of arrays')
     end

@@ -1,36 +1,44 @@
-require 'forwardable'
+module GraphQL
+  class Query
+    # Read-only access to values, normalizing all keys to strings
+    #
+    # {Arguments} recursively wraps the input in {Arguments} instances.
+    class Arguments
+      extend Forwardable
 
-# Provide read-only access to arguments by string or symbol names.
-class GraphQL::Query::Arguments
-  extend Forwardable
+      def initialize(values)
+        @hash = values
+        @values = values.inject({}) do |memo, (inner_key, inner_value)|
+          memo[inner_key.to_s] = wrap_value(inner_value)
+          memo
+        end
+      end
 
-  def initialize(ast_arguments, argument_hash, variables)
-    @hash = ast_arguments.reduce({}) do |memo, arg|
-      arg_defn = argument_hash[arg.name]
-      value = reduce_value(arg.value, arg_defn, variables)
-      memo[arg.name] = value
-      memo
-    end
-  end
+      # @param [String, Symbol] name or index of value to access
+      # @return [Object] the argument at that key
+      def [](key)
+        @values[key.to_s]
+      end
 
-  def_delegators :@hash, :keys, :values, :inspect, :to_h
+      # Get the original Ruby hash
+      # @return [Hash] the original values hash
+      def to_h
+        @hash
+      end
 
-  def [](key)
-    @hash[key.to_s]
-  end
+      def_delegators :@values, :keys, :values, :each
 
-  private
+      private
 
-  def reduce_value(value, arg_defn, variables)
-    if value.is_a?(GraphQL::Language::Nodes::VariableIdentifier)
-      value = variables[value.name]
-    elsif value.is_a?(GraphQL::Language::Nodes::Enum)
-      value = arg_defn.type.coerce(value.name)
-    elsif value.is_a?(GraphQL::Language::Nodes::InputObject)
-      wrapped_type = arg_defn.type.unwrap
-      value = self.class.new(value.pairs, wrapped_type.input_fields, variables)
-    else
-      value
+      def wrap_value(value)
+        if value.is_a?(Array)
+          value.map { |item| wrap_value(item) }
+        elsif value.is_a?(Hash)
+          self.class.new(value)
+        else
+          value
+        end
+      end
     end
   end
 end

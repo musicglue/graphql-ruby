@@ -6,7 +6,13 @@
 [![Test Coverage](https://codeclimate.com/github/rmosolgo/graphql-ruby/badges/coverage.svg)](https://codeclimate.com/github/rmosolgo/graphql-ruby)
 [![built with love](https://cloud.githubusercontent.com/assets/2231765/6766607/d07992c6-cfc9-11e4-813f-d9240714dd50.png)](http://rmosolgo.github.io/react-badges/)
 
- - [Introduction](https://github.com/rmosolgo/graphql-ruby/blob/master/guides/introduction.md)
+A Ruby implementation of [GraphQL](http://graphql.org/).
+
+ - Guides
+     - [Introduction](https://github.com/rmosolgo/graphql-ruby/blob/master/guides/introduction.md)
+     - [Defining Your Schema](https://github.com/rmosolgo/graphql-ruby/blob/master/guides/defining_your_schema.md)
+     - [Executing Queries](https://github.com/rmosolgo/graphql-ruby/blob/master/guides/executing_queries.md)
+
  - [API Documentation](http://www.rubydoc.info/github/rmosolgo/graphql-ruby)
 
 ## Installation
@@ -92,12 +98,28 @@ If you're building a backend for [Relay](http://facebook.github.io/relay/), you'
 - Code clean-up
   - Raise if you try to configure an attribute which doesn't suit the type
     - ie, if you try to define `resolve` on an ObjectType, it should somehow raise
-- Big ideas:
-  - Write Ruby bindings for [libgraphqlparser](https://github.com/graphql/libgraphqlparser) and use that instead of Parslet
-  - Add instrumentation
-    - Some way to expose what queries are run, what types & fields are accessed, how long things are taking, etc
-    - before-hooks for every field?
+  - Clean up file structure in `lib/query` (don't need serial_execution namespace anymore)
+  - Overriding `!` on types breaks ActiveSupport `.blank?`
 
+    ```ruby
+    my_type = GraphQL::ObjectType.define { name("MyType") }
+    # => MyType
+    my_type.present?
+    # => MyType!!
+    my_type.blank?
+    # => MyType!
+    ```
+- Statically validate type of variables (see early return in LiteralValidator)
+- Big ideas:
+  - Use [graphql-parser](https://github.com/shopify/graphql-parser) (Ruby bindings for [libgraphqlparser](https://github.com/graphql/libgraphqlparser)) instead of Parslet
+  - Revamp the fixture Schema to be more useful (better names, more extensible)
+  - __Subscriptions__
+    - This is a good chance to make an `Operation` abstraction of which `query`, `mutation` and `subscription` are members
+    - For a subscription, `graphql` would send an outbound message to the system (allow the host application to manage its own subscriptions via Pusher, ActionCable, whatever)
+  - Pre-process query strings?
+    - Remove `@skip`-ed things
+    - Inline any fragments
+    - Inline variables?
 
 ## Goals
 
@@ -112,14 +134,12 @@ If you're building a backend for [Relay](http://facebook.github.io/relay/), you'
 - __Features & patches__ are welcome! Consider discussing it in an [issue](https://github.com/rmosolgo/graphql-ruby/issues) or in the [#ruby channel on Slack](https://graphql-slack.herokuapp.com/) to make sure we're on the same page.
 - __Run the tests__ with `rake test` or start up guard with `bundle exec guard`.
 
-## Other Resources
+## Related Projects
 
-- [GraphQL Spec](http://facebook.github.io/graphql/)
-- Other implementations: [graphql-links](https://github.com/emmenko/graphql-links)
 - `graphql-ruby` + Rails demo ([src](https://github.com/rmosolgo/graphql-ruby-demo) / [heroku](http://graphql-ruby-demo.herokuapp.com))
-- [GraphQL Slack](https://graphql-slack.herokuapp.com/)
-- [Example Relay support](https://github.com/rmosolgo/graphql-relay-ruby) in Ruby
+- [`graphql-batch`](https://github.com/shopify/graphql-batch), a batched query execution strategy
 - [`graphql-parallel`](https://github.com/rmosolgo/graphql-parallel), an asynchronous query execution strategy
+- [Example Relay support](https://github.com/rmosolgo/graphql-relay-ruby) in Ruby
 
 ## P.S.
 

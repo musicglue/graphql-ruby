@@ -13,7 +13,7 @@ describe GraphQL::Query do
       }
       fromSource(source: COW) { id }
       fromSheep: fromSource(source: SHEEP) { id }
-      firstSheep: searchDairy(product: {source: SHEEP}) {
+      firstSheep: searchDairy(product: [{source: SHEEP}]) {
         __typename,
         ... dairyFields,
         ... milkFields
@@ -30,10 +30,12 @@ describe GraphQL::Query do
   |}
   let(:debug) { false }
   let(:operation_name) { nil }
+  let(:query_variables) { {"cheeseId" => 2} }
+  let(:schema) { DummySchema }
   let(:query) { GraphQL::Query.new(
-    DummySchema,
+    schema,
     query_string,
-    variables: {"cheeseId" => 2},
+    variables: query_variables,
     debug: debug,
     operation_name: operation_name,
   )}
@@ -63,7 +65,7 @@ describe GraphQL::Query do
           maybeNull {
             cheese {
               flavor,
-              similarCheeses(source: [SHEEP]) { flavor }
+              similarCheese(source: [SHEEP]) { flavor }
             }
           }
         }
@@ -101,6 +103,7 @@ describe GraphQL::Query do
   describe "merging fragments with different keys" do
     let(:query_string) { %|
       query getCheeseFieldsThroughDairy {
+        ... cheeseFrag3
         dairy {
           ...flavorFragment
           ...fatContentFragment
@@ -122,6 +125,21 @@ describe GraphQL::Query do
           fatContent
         }
       }
+
+      fragment cheeseFrag1 on Query {
+        cheese(id: 1) {
+          id
+        }
+      }
+      fragment cheeseFrag2 on Query {
+        cheese(id: 1) {
+          flavor
+        }
+      }
+      fragment cheeseFrag3 on Query {
+        ... cheeseFrag2
+        ... cheeseFrag1
+      }
     |}
 
     it "should include keys from each fragment" do
@@ -137,7 +155,11 @@ describe GraphQL::Query do
               "fatContent" => 0.04,
             }
           ],
-        }
+        },
+        "cheese" => {
+          "id" => 1,
+          "flavor" => "Brie"
+        },
       }}
       assert_equal(expected, result)
     end
@@ -147,50 +169,132 @@ describe GraphQL::Query do
     describe "whitespace-only" do
       let(:query_string) { " " }
       it "doesn't blow up" do
-        assert_equal({"data"=> {}}, result)
+        assert_equal({}, result)
       end
     end
 
     describe "empty string" do
       let(:query_string) { "" }
       it "doesn't blow up" do
-        assert_equal({"data"=> {}}, result)
+        assert_equal({}, result)
       end
     end
   end
 
-  describe 'context' do
-    let(:query_type) { GraphQL::ObjectType.define {
-      field :context, types.String do
-        argument :key, !types.String
-        resolve -> (target, args, ctx) { ctx[args[:key]] }
-      end
-      field :contextAstNodeName, types.String do
-        resolve -> (target, args, ctx) { ctx.ast_node.class.name }
-      end
-    }}
-    let(:schema) { GraphQL::Schema.new(query: query_type, mutation: nil)}
-    let(:query) { GraphQL::Query.new(schema, query_string, context: {"some_key" => "some value"})}
+  describe "field argument default values" do
+    let(:query_string) {%|
+      query getCheeses(
+        $search: [DairyProductInput]
+        $searchWithDefault: [DairyProductInput] = [{source: COW}]
+      ){
+        noVariable: searchDairy(product: $search) {
+          ... cheeseFields
+        }
+        noArgument: searchDairy {
+          ... cheeseFields
+        }
+        variableDefault: searchDairy(product: $searchWithDefault) {
+          ... cheeseFields
+        }
 
-    describe "access to passed-in values" do
-      let(:query_string) { %|
-        query getCtx { context(key: "some_key") }
-      |}
+      }
+      fragment cheeseFields on Cheese { flavor }
+    |}
 
-      it 'passes context to fields' do
-        expected = {"data" => {"context" => "some value"}}
-        assert_equal(expected, query.result)
+    it "has a default value" do
+      default_source = schema.query.fields["searchDairy"].arguments["product"].default_value[0]["source"]
+      assert_equal("SHEEP", default_source)
+    end
+
+    describe "when a variable is used, but not provided" do
+      it "uses the default_value" do
+        assert_equal("Manchego", result["data"]["noVariable"]["flavor"])
       end
     end
 
-    describe "access to the AST node" do
-      let(:query_string) { %|
-        query getCtx { contextAstNodeName }
+    describe "when the argument isn't passed at all" do
+      it "uses the default value" do
+        assert_equal("Manchego", result["data"]["noArgument"]["flavor"])
+      end
+    end
+
+    describe "when the variable has a default" do
+      it "uses the variable default" do
+        assert_equal("Brie", result["data"]["variableDefault"]["flavor"])
+      end
+    end
+  end
+
+  describe "query variables" do
+    let(:query_string) {%|
+      query getCheese($cheeseId: Int!){
+        cheese(id: $cheeseId) { flavor }
+      }
+    |}
+
+    describe "when they can be coerced" do
+      let(:query_variables) { {"cheeseId" => 2.0} }
+
+      it "coerces them on the way in" do
+        assert("Gouda", result["data"]["cheese"]["flavor"])
+      end
+    end
+
+    describe "when they can't be coerced" do
+      let(:query_variables) { {"cheeseId" => "2"} }
+
+      it "raises an error" do
+        assert_equal(result["errors"][0]["message"], %{Variable cheeseId of type Int! was provided invalid value "2"})
+      end
+    end
+
+    describe "when they aren't provided" do
+      let(:query_variables) { {} }
+
+      it "raises an error" do
+        expected = "Variable cheeseId of type Int! can't be null"
+        assert_equal(result["errors"][0]["message"], expected)
+      end
+    end
+
+    describe "default values" do
+      let(:query_string) {%|
+        query getCheese($cheeseId: Int = 3){
+          cheese(id: $cheeseId) { id, flavor }
+        }
       |}
 
-      it 'provides access to the AST node' do
-        expected = {"data" => {"contextAstNodeName" => "GraphQL::Language::Nodes::Field"}}
-        assert_equal(expected, query.result)
+      describe "when no value is provided" do
+        let(:query_variables) { {} }
+
+        it "uses the default" do
+          assert(3, result["data"]["cheese"]["id"])
+          assert("Manchego", result["data"]["cheese"]["flavor"])
+        end
+      end
+
+      describe "when a value is provided" do
+        it "uses the provided variable" do
+          assert(2, result["data"]["cheese"]["id"])
+          assert("Gouda", result["data"]["cheese"]["flavor"])
+        end
+      end
+
+      describe "when complex values" do
+        let(:query_variables) { {"search" => [{"source" => "COW"}]} }
+        let(:query_string) {%|
+          query getCheeses($search: [DairyProductInput]!){
+            cow: searchDairy(product: $search) {
+              ... on Cheese {
+                flavor
+              }
+            }
+          }
+        |}
+
+        it "coerces recursively" do
+          assert_equal("Brie", result["data"]["cow"]["flavor"])
+        end
       end
     end
   end
