@@ -9,9 +9,10 @@
 A Ruby implementation of [GraphQL](http://graphql.org/).
 
  - Guides
-     - [Introduction](https://github.com/rmosolgo/graphql-ruby/blob/master/guides/introduction.md)
-     - [Defining Your Schema](https://github.com/rmosolgo/graphql-ruby/blob/master/guides/defining_your_schema.md)
-     - [Executing Queries](https://github.com/rmosolgo/graphql-ruby/blob/master/guides/executing_queries.md)
+     - [Introduction](http://www.rubydoc.info/github/rmosolgo/graphql-ruby/file/guides/introduction.md)
+     - [Defining Your Schema](http://www.rubydoc.info/github/rmosolgo/graphql-ruby/file/guides/defining_your_schema.md)
+     - [Executing Queries](http://www.rubydoc.info/github/rmosolgo/graphql-ruby/file/guides/executing_queries.md)
+     - [Testing](http://www.rubydoc.info/github/rmosolgo/graphql-ruby/file/guides/testing.md)
 
  - [API Documentation](http://www.rubydoc.info/github/rmosolgo/graphql-ruby)
 
@@ -57,12 +58,11 @@ QueryType = GraphQL::ObjectType.define do
 end
 
 # Then create your schema
-Schema = GraphQL::Schema.new(query: QueryType)
+Schema = GraphQL::Schema.new(
+  query: QueryType,
+  max_depth: 8,
+)
 ```
-
-See also:
-  - the [test schema](https://github.com/rmosolgo/graphql-ruby/blob/master/spec/support/dairy_app.rb)
-  - [`graphql-ruby-demo`](https://github.com/rmosolgo/graphql-ruby-demo) for an example schema on Rails
 
 #### Execute queries
 
@@ -80,46 +80,12 @@ result_hash = Schema.execute(query_string)
 # }
 ```
 
-See also:
-  - [query_spec.rb](https://github.com/rmosolgo/graphql-ruby/blob/master/spec/graphql/query_spec.rb) for an example of query execution.
-  -  [`queries_controller.rb`](https://github.com/rmosolgo/graphql-ruby-demo/blob/master/app/controllers/queries_controller.rb) for a Rails example
-  - Try it on [heroku](http://graphql-ruby-demo.herokuapp.com)
-
 #### Use with Relay
 
 If you're building a backend for [Relay](http://facebook.github.io/relay/), you'll need:
 
 - A JSON dump of the schema, which you can get by sending [`GraphQL::Introspection::INTROSPECTION_QUERY`](https://github.com/rmosolgo/graphql-ruby/blob/master/lib/graphql/introspection/introspection_query.rb)
 - Relay-specific helpers for GraphQL like Connections, node fields, and global ids. Here's one example of those: [`graphql-relay`](https://github.com/rmosolgo/graphql-relay-ruby)
-
-
-## To Do
-
-- Code clean-up
-  - Raise if you try to configure an attribute which doesn't suit the type
-    - ie, if you try to define `resolve` on an ObjectType, it should somehow raise
-  - Clean up file structure in `lib/query` (don't need serial_execution namespace anymore)
-  - Overriding `!` on types breaks ActiveSupport `.blank?`
-
-    ```ruby
-    my_type = GraphQL::ObjectType.define { name("MyType") }
-    # => MyType
-    my_type.present?
-    # => MyType!!
-    my_type.blank?
-    # => MyType!
-    ```
-- Statically validate type of variables (see early return in LiteralValidator)
-- Big ideas:
-  - Use [graphql-parser](https://github.com/shopify/graphql-parser) (Ruby bindings for [libgraphqlparser](https://github.com/graphql/libgraphqlparser)) instead of Parslet
-  - Revamp the fixture Schema to be more useful (better names, more extensible)
-  - __Subscriptions__
-    - This is a good chance to make an `Operation` abstraction of which `query`, `mutation` and `subscription` are members
-    - For a subscription, `graphql` would send an outbound message to the system (allow the host application to manage its own subscriptions via Pusher, ActionCable, whatever)
-  - Pre-process query strings?
-    - Remove `@skip`-ed things
-    - Inline any fragments
-    - Inline variables?
 
 ## Goals
 
@@ -136,12 +102,29 @@ If you're building a backend for [Relay](http://facebook.github.io/relay/), you'
 
 ## Related Projects
 
+### Code
+
 - `graphql-ruby` + Rails demo ([src](https://github.com/rmosolgo/graphql-ruby-demo) / [heroku](http://graphql-ruby-demo.herokuapp.com))
 - [`graphql-batch`](https://github.com/shopify/graphql-batch), a batched query execution strategy
-- [`graphql-parallel`](https://github.com/rmosolgo/graphql-parallel), an asynchronous query execution strategy
 - [Example Relay support](https://github.com/rmosolgo/graphql-relay-ruby) in Ruby
+- [`graphql-libgraphqlparser`](https://github.com/rmosolgo/graphql-libgraphqlparser), bindings to [libgraphqlparser](https://github.com/graphql/libgraphqlparser), a C-level parser.
 
-## P.S.
+### Blog Posts
 
-- Thanks to @sgwilym for the great logo!
-- Definition API heavily inspired by @seanchas's [implementation of GraphQL](https://github.com/seanchas/graphql)
+-  Building a blog in GraphQL and Relay on Rails [Introduction](https://medium.com/@gauravtiwari/graphql-and-relay-on-rails-getting-started-955a49d251de), [Part 1]( https://medium.com/@gauravtiwari/graphql-and-relay-on-rails-creating-types-and-schema-b3f9b232ccfc), [Part 2](https://medium.com/@gauravtiwari/graphql-and-relay-on-rails-first-relay-powered-react-component-cb3f9ee95eca)
+- https://medium.com/@khor/relay-facebook-on-rails-8b4af2057152
+- https://blog.jacobwgillespie.com/from-rest-to-graphql-b4e95e94c26b#.4cjtklrwt
+- http://mgiroux.me/2015/getting-started-with-rails-graphql-relay/
+- http://mgiroux.me/2015/uploading-files-using-relay-with-rails/
+
+## To Do
+
+- Type lookup should be by type name (to support reloaded constants in Rails code)
+- Add a complexity validator (reject queries if they're too big)
+- Add docs for shared behaviors & DRY code
+- Revamp the fixture Schema to be more useful (better names, more extensible)
+- Fix when a field's type is left out `field :name, "This is the name field"`
+- Revisit error handling & `debug:` option
+- __Subscriptions__
+  - This is a good chance to make an `Operation` abstraction of which `query`, `mutation` and `subscription` are members
+  - For a subscription, `graphql` would send an outbound message to the system (allow the host application to manage its own subscriptions via Pusher, ActionCable, whatever)

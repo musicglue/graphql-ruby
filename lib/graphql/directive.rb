@@ -1,34 +1,37 @@
-# This implementation of `Directive` is ... not robust.
-# It seems like this area of the spec is still getting worked out, so
-# {Directive} & {DirectiveChain} implement `@skip` and `@include` with
-# minimal impact on query execution.
-class GraphQL::Directive
-  include GraphQL::DefinitionHelpers::DefinedByConfig
-  attr_accessor :on, :arguments, :name, :description
-  defined_by_config :on, :arguments, :name, :description, :resolve
+module GraphQL
+  class Directive
+    include GraphQL::Define::InstanceDefinable
+    accepts_definitions :locations, :name, :description, :include_proc, argument: GraphQL::Define::AssignArgument
 
-  LOCATIONS = [
-    ON_OPERATION =  :on_operation?,
-    ON_FRAGMENT =   :on_fragment?,
-    ON_FIELD =      :on_field?,
-  ]
+    attr_accessor :locations, :arguments, :name, :description
 
-  LOCATIONS.each do |location|
-    define_method(location) { self.on.include?(location) }
-  end
+    LOCATIONS = [
+      QUERY =               :QUERY,
+      MUTATION =            :MUTATION,
+      SUBSCRIPTION =        :SUBSCRIPTION,
+      FIELD =               :FIELD,
+      FRAGMENT_DEFINITION = :FRAGMENT_DEFINITION,
+      FRAGMENT_SPREAD =     :FRAGMENT_SPREAD,
+      INLINE_FRAGMENT =     :INLINE_FRAGMENT,
+    ]
 
-  def resolve(arguments, proc)
-    @resolve_proc.call(arguments, proc)
-  end
+    def initialize
+      @arguments = {}
+    end
 
-  def resolve=(resolve_proc)
-    @resolve_proc = resolve_proc
-  end
+    def include?(arguments)
+      @include_proc.call(arguments)
+    end
 
-  def to_s
-    "<GraphQL::Directive #{name}>"
+    def include_proc=(include_proc)
+      @include_proc = include_proc
+    end
+
+    def to_s
+      "<GraphQL::Directive #{name}>"
+    end
   end
 end
 
-require 'graphql/directive/include_directive'
-require 'graphql/directive/skip_directive'
+require "graphql/directive/include_directive"
+require "graphql/directive/skip_directive"

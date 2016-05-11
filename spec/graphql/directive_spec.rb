@@ -1,8 +1,8 @@
-require 'spec_helper'
+require "spec_helper"
 
 describe GraphQL::Directive do
   let(:result) { DummySchema.execute(query_string, variables: {"t" => true, "f" => false}) }
-  describe 'on fields' do
+  describe "on fields" do
     let(:query_string) { %|query directives($t: Boolean!, $f: Boolean!) {
       cheese(id: 1) {
         # plain fields:
@@ -23,11 +23,11 @@ describe GraphQL::Directive do
       fragment dontIncludeIdField on Cheese { dontIncludeId: id @include(if: false) }
       fragment skipIdField on Cheese { skipId: id @skip(if: true) }
       fragment dontSkipIdField on Cheese { dontSkipId: id @skip(if: false) }
-    |}
-    it 'intercepts fields' do
+    |
+    }
+    it "intercepts fields" do
       expected = { "data" =>{
         "cheese" => {
-          "dontSkipDontIncludeFlavor" => "Brie", #skip has precedence over include
           "dontSkipFlavor" => "Brie",
           "includeFlavor" => "Brie",
           "includeId" => 1,
@@ -37,7 +37,7 @@ describe GraphQL::Directive do
       assert_equal(expected, result)
     end
   end
-  describe 'on fragments' do
+  describe "on fragments spreads and inline fragments" do
     let(:query_string) { %|query directives {
       cheese(id: 1) {
         ... skipFlavorField @skip(if: true)
@@ -45,37 +45,29 @@ describe GraphQL::Directive do
         ... includeFlavorField @include(if: true)
         ... dontIncludeFlavorField @include(if: false)
 
-        ... includeIdField
-        ... dontIncludeIdField
-        ... skipIdField
-        ... dontSkipIdField
 
         ... on Cheese @skip(if: true) { skipInlineId: id }
         ... on Cheese @skip(if: false) { dontSkipInlineId: id }
         ... on Cheese @include(if: true) { includeInlineId: id }
         ... on Cheese @include(if: false) { dontIncludeInlineId: id }
+        ... @skip(if: true) { skipNoType: id }
+        ... @skip(if: false) { dontSkipNoType: id }
         }
       }
       fragment includeFlavorField on Cheese { includeFlavor: flavor  }
       fragment dontIncludeFlavorField on Cheese { dontIncludeFlavor: flavor  }
       fragment skipFlavorField on Cheese { skipFlavor: flavor  }
       fragment dontSkipFlavorField on Cheese { dontSkipFlavor: flavor }
-
-      fragment includeIdField on Cheese @include(if: true) { includeId: id  }
-      fragment dontIncludeIdField on Cheese @include(if: false) { dontIncludeId: id  }
-      fragment skipIdField on Cheese @skip(if: true) { skipId: id  }
-      fragment dontSkipIdField on Cheese @skip(if: false) { dontSkipId: id }
     |}
 
-    it 'intercepts fragment spreads' do
+    it "intercepts fragment spreads" do
       expected = { "data" => {
         "cheese" => {
           "dontSkipFlavor" => "Brie",
           "includeFlavor" => "Brie",
-          "includeId" => 1,
-          "dontSkipId" => 1,
           "dontSkipInlineId" => 1,
           "includeInlineId" => 1,
+          "dontSkipNoType" => 1,
         },
       }}
       assert_equal(expected, result)

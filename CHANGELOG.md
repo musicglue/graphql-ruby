@@ -6,6 +6,179 @@
 
 ### Bug fixes
 
+## 0.13.0 (29 Apr 2016)
+
+### Breaking changes & deprecations
+
+- "Dangling" object types are not loaded into the schema. The must be passed in `GraphQL::Schema.new(types: [...])`. (This was deprecated in 0.12.1)
+
+### New features
+
+- Update directive introspection to new spec #121
+- Improved schema validation errors #113
+- 20x faster parsing #119
+- Support inline fragments without type condition #123
+- Support multiple schemas composed of the same types #142
+- Accept argument `description` and `default_value` in the block #138
+- Middlewares can send _new_ arguments to subsequent middlewares #129
+
+### Bug fixes
+
+- Don't leak details of internal errors #120
+- Default query `context` to `{}` #133
+- Fixed list nullability validation #131
+- Ensure field names are strings #128
+- Fix `@skip` and `@include` implementation #124
+- Interface membership is not shared between schemas #142
+
+## 0.12.1 (26 Apr 2016)
+
+### Breaking changes & deprecations
+
+- __Connecting object types to the schema _only_ via interfaces is deprecated.__ It will be unsupported in the next version of `graphql`.
+
+  Sometimes, object type is only connected to the Query (or Mutation) root by being a member of an interface. In these cases, bugs happen, especially with Rails development mode. (And sometimes, the bugs don't appear until you deploy to a production environment!)
+
+  So, in a case like this:
+
+  ```ruby
+  HatInterface = GraphQL::ObjectType.define do
+    # ...
+  end
+
+  FezType = GraphQL::ObjectType.define do
+    # ...
+    interfaces [HatInterface]
+  end
+
+  QueryType = GraphQL::ObjectType.define do
+    field :randomHat, HatInterface # ...
+  end
+  ```
+
+  `FezType` can only be discovered by `QueryType` _through_ `HatInterface`. If `fez_type.rb` hasn't been loaded by Rails, `HatInterface.possible_types` will be empty!
+
+  Now, `FezType` must be passed to the schema explicitly:
+
+  ```ruby
+  Schema.new(
+    # ...
+    types: [FezType]
+  )
+  ```
+
+  Since the type is passed directly to the schema, it will be loaded right away!
+
+### New features
+
+### Bug fixes
+
+## 0.12.0 (20 Mar 2016)
+
+### Breaking changes & deprecations
+
+- `GraphQL::DefinitionConfig` was replaced by `GraphQL::Define` #116
+- Many scalar types are more picky about which inputs they allow (#115). To get the previous behavior, add this to your program:
+
+  ```ruby
+  # Previous coerce behavior for scalars:
+  GraphQL::BOOLEAN_TYPE.coerce = -> (value) { !!value }
+  GraphQL::ID_TYPE.coerce = -> (value) { value.to_s }
+  GraphQL::STRING_TYPE.coerce = ->  (value) { value.to_s }
+  # INT_TYPE and FLOAT_TYPE were unchanged
+  ```
+
+- `GraphQL::Field`s can't be renamed because `#resolve` may depend on that name. (This was only a problem if you pass the _same_ `GraphQL::Field` instance to `field ... field:` definitions.)
+- `GraphQL::Query::DEFAULT_RESOLVE` was removed. `GraphQL::Field#resolve` handles that behavior.
+
+### New features
+
+- Can override `max_depth:` from `Schema#execute`
+- Base `GraphQL::Error` for all graphql-related errors
+
+### Bug fixes
+
+- Include `""` for String default values (so it's encoded as a GraphQL string literal)
+
+## 0.11.1 (6 Mar 2016)
+
+### New features
+
+- Schema `max_depth:` option #110
+- Improved validation errors for input objects #104
+- Interfaces provide field implementations to object types #108
+
+## 0.11.0 (28 Feb 2016)
+
+### Breaking changes & deprecations
+
+- `GraphQL::Query::BaseExecution` was removed, you should probably extend `SerialExecution` instead #96
+- `GraphQL::Language::Nodes` members no longer raise if they don't get inputs during `initialize` #92
+- `GraphQL.parse` no longer accepts `as:` for parsing partial queries.  #92
+
+### New features
+
+- `Field#property` & `Field#property=` can be used to access & modify the method that will be sent to the underlying object when resolving a field #88
+- When defining a field, you can pass a string for as `type`. It will be looked up in the global namespace.
+- `Query::Arguments#to_h` unwraps `Arguments` objects recursively
+- If you raise `GraphQL::ExecutionError` during field resolution, it will be rescued and the message will be added to the response's `errors` key. #93
+- Raise an error when non-null fields are `nil` #94
+
+### Bug fixes
+
+- Accept Rails params as input objects
+- Don't get a runtime error when input contains unknown key #100
+
+## 0.10.9 (15 Jan 2016)
+
+### Bug fixes
+
+- Handle re-assignment of `ObjectType#interfaces` #84
+- Fix merging queries on interface-typed fields #85
+
+## 0.10.8 (14 Jan 2016)
+
+### Bug fixes
+
+- Fix transform of nested lists #79
+- Fix parse & transform of escaped characters #83
+
+## 0.10.7 (22 Dec 2015)
+
+### New features
+
+- Support Rubinius
+
+### Bug fixes
+
+- Coerce values into one-item lists for ListTypes
+
+## 0.10.6 (20 Dec 2015)
+
+### Bug fixes
+
+- Remove leftover `puts`es
+
+## 0.10.5 (19 Dec 2015)
+
+### Bug fixes
+
+- Accept enum value description in definition #71
+- Correctly parse empty input objects #75
+- Correctly parse arguments preceded by newline
+- Find undefined input object keys during static validation
+
+## 0.10.4 (24 Nov 2015)
+
+### New features
+
+- Add `Arguments#to_h` #66
+
+### Bug fixes
+
+- Accept argument description in definition
+- Correctly parse empty lists
+
 ## 0.10.3 (11 Nov 2015)
 
 ### New features

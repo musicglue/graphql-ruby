@@ -2,7 +2,7 @@ module GraphQL
   # If a field's resolve function returns a {ExecutionError},
   # the error will be inserted into the response's `"errors"` key
   # and the field will resolve to `nil`.
-  class ExecutionError < RuntimeError
+  class ExecutionError < GraphQL::Error
     # @return [GraphQL::Language::Nodes::Field] the field where the error occured
     attr_accessor :ast_node
 
@@ -14,9 +14,7 @@ module GraphQL
 
       hash.merge!({ 'backtrace' => backtrace }) if self.class.backtrace_enabled
 
-      if ast_node.nil?
-        hash["locations"] = []
-      else
+      if ast_node
         hash["locations"] = [
           {
             "line" => ast_node.line,
@@ -26,7 +24,7 @@ module GraphQL
       end
       hash
     end
-    
+
     class << self
       attr_accessor :backtrace_enabled
     end

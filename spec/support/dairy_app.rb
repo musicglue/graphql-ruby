@@ -1,11 +1,12 @@
-require_relative './dairy_data'
+require_relative "./dairy_data"
 
 class NoSuchDairyError < StandardError; end
 
 EdibleInterface = GraphQL::InterfaceType.define do
   name "Edible"
   description "Something you can eat, yum"
-  field :fatContent, !types.Float, "Percentage which is fat", property: :bogus_property
+  field :fatContent, !types.Float, "Percentage which is fat"
+  field :origin, !types.String, "Place the edible comes from"
 end
 
 AnimalProductInterface = GraphQL::InterfaceType.define do
@@ -31,6 +32,7 @@ CheeseType = GraphQL::ObjectType.define do
   # Can have (name, type, desc)
   field :id, !types.Int, "Unique identifier"
   field :flavor, !types.String, "Kind of Cheese"
+  field :origin, !types.String, "Place the cheese comes from"
 
   field :source, !DairyAnimalEnum,
     "Animal which produced the milk for this cheese"
@@ -49,6 +51,16 @@ CheeseType = GraphQL::ObjectType.define do
     }
   end
 
+  field :nullableCheese, -> { CheeseType }, "Cheeses like this one" do
+    argument :source, types[!DairyAnimalEnum]
+    resolve -> (t, a, c) { raise("NotImplemented") }
+  end
+
+  field :deeplyNullableCheese, -> { CheeseType }, "Cheeses like this one" do
+    argument :source, types[types[DairyAnimalEnum]]
+    resolve -> (t, a, c) { raise("NotImplemented") }
+  end
+
   field :fatContent, property: :fat_content do
     type(!GraphQL::FLOAT_TYPE)
     description("Percentage which is milkfat")
@@ -57,12 +69,12 @@ CheeseType = GraphQL::ObjectType.define do
 end
 
 MilkType = GraphQL::ObjectType.define do
-  name 'Milk'
+  name "Milk"
   description "Dairy beverage"
   interfaces [EdibleInterface, AnimalProductInterface]
   field :id, !types.ID
   field :source, DairyAnimalEnum, "Animal which produced this milk"
-  field :fatContent, !types.Float, "Percentage which is milkfat"
+  field :origin, !types.String, "Place the milk comes from"
   field :flavors, types[types.String], "Chocolate, Strawberry, etc" do
     argument :limit, types.Int
     resolve -> (milk, args, ctx) {
@@ -71,9 +83,16 @@ MilkType = GraphQL::ObjectType.define do
   end
 end
 
+# No actual data; This type is an "orphan", only accessible through Interfaces
+HoneyType = GraphQL::ObjectType.define do
+  name "Honey"
+  description "Sweet, dehydrated bee barf"
+  interfaces [EdibleInterface, AnimalProductInterface]
+end
+
 DairyType = GraphQL::ObjectType.define do
-  name 'Dairy'
-  description 'A farm where milk is harvested and cheese is produced'
+  name "Dairy"
+  description "A farm where milk is harvested and cheese is produced"
   field :id, !types.ID
   field :cheese, CheeseType
   field :milks, types[MilkType]
@@ -92,21 +111,43 @@ DairyProductUnion = GraphQL::UnionType.define do
 end
 
 CowType = GraphQL::ObjectType.define do
-  name 'Cow'
-  description 'A farm where milk is harvested and cheese is produced'
+  name "Cow"
+  description "A farm where milk is harvested and cheese is produced"
   field :id, !types.ID
   field :name, types.String
   field :last_produced_dairy, DairyProductUnion
+
+  field :cantBeNullButIs do
+    type !GraphQL::STRING_TYPE
+    resolve -> (t, a, c) { nil }
+  end
+
+  field :cantBeNullButRaisesExecutionError do
+    type !GraphQL::STRING_TYPE
+    resolve -> (t, a, c) { raise GraphQL::ExecutionError, "BOOM" }
+  end
 end
 
 DairyProductInputType = GraphQL::InputObjectType.define {
   name "DairyProductInput"
   description "Properties for finding a dairy product"
   input_field :source, !DairyAnimalEnum do
+    # ensure we can define description in block
     description "Where it came from"
   end
 
-  input_field :fatContent, types.Float, "How much fat it has"
+  input_field :originDairy, types.String, "Dairy which produced it", default_value: "Sugar Hollow Dairy" do
+    description   "Ignored because arg takes precedence"
+    default_value "Ignored because keyword arg takes precedence"
+  end
+
+  input_field :fatContent, types.Float, "How much fat it has" do
+    # ensure we can define default in block
+    default_value 0.3
+  end
+
+  # ensure default can be false
+  input_field :organic, types.Boolean, default_value: false
 }
 
 
@@ -186,6 +227,11 @@ QueryType = GraphQL::ObjectType.define do
     resolve -> (t, a, c) { raise("This error was raised on purpose") }
   end
 
+  field :executionError do
+    type GraphQL::STRING_TYPE
+    resolve -> (t, a, c) { raise(GraphQL::ExecutionError, "There was an execution error") }
+  end
+
   # To test possibly-null fields
   field :maybeNull, MaybeNullType do
     resolve -> (t, a, c) { OpenStruct.new(cheese: nil) }
@@ -233,5 +279,7 @@ DummySchema = GraphQL::Schema.new(
   query: QueryType,
   mutation: MutationType,
   subscription: SubscriptionType,
+  max_depth: 5,
+  types: [HoneyType],
 )
 DummySchema.rescue_from(NoSuchDairyError) { |err| err.message  }

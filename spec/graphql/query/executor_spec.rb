@@ -1,16 +1,18 @@
-require 'spec_helper'
+require "spec_helper"
 
 describe GraphQL::Query::Executor do
-  let(:debug) { false }
+  let(:debug) { true }
   let(:operation_name) { nil }
   let(:schema) { DummySchema }
   let(:variables) { {"cheeseId" => 2} }
-  let(:result) { schema.execute(
+  let(:query) { GraphQL::Query.new(
+    schema,
     query_string,
     variables: variables,
     debug: debug,
     operation_name: operation_name,
   )}
+  let(:result) { query.result }
 
   describe "multiple operations" do
     let(:query_string) { %|
@@ -46,7 +48,7 @@ describe GraphQL::Query::Executor do
   end
 
 
-  describe 'execution order' do
+  describe "execution order" do
     let(:query_string) {%|
       mutation setInOrder {
         first:  pushValue(value: 1)
@@ -56,7 +58,7 @@ describe GraphQL::Query::Executor do
       }
     |}
 
-    it 'executes mutations in order' do
+    it "executes mutations in order" do
       expected = {"data"=>{
           "first"=> [1],
           "second"=>[1, 5],
@@ -68,7 +70,7 @@ describe GraphQL::Query::Executor do
   end
 
 
-  describe 'fragment resolution' do
+  describe "fragment resolution" do
     let(:schema) {
       # we will raise if the dairy field is resolved more than one time
       resolved = false
@@ -103,7 +105,7 @@ describe GraphQL::Query::Executor do
       }
     |}
 
-    it 'resolves each field only one time, even when present in multiple fragments' do
+    it "resolves each field only one time, even when present in multiple fragments" do
       expected = {"data" => {
         "dairy" => { "id" => "1" }
       }}
@@ -113,22 +115,58 @@ describe GraphQL::Query::Executor do
   end
 
 
-  describe 'runtime errors' do
+  describe "runtime errors" do
     let(:query_string) {%| query noMilk { error }|}
-    describe 'if debug: false' do
+
+    describe "if debug: false" do
       let(:debug) { false }
-      it 'turns into error messages' do
+      let(:errors) { query.context.errors }
+
+      it "turns into error messages" do
         expected = {"errors"=>[
-          {"message"=>"Something went wrong during query execution: This error was raised on purpose"}
+          {"message"=>"Internal error"}
         ]}
+        assert_equal(expected, result)
+        assert_equal([RuntimeError], errors.map(&:class))
+        assert_equal("This error was raised on purpose", errors.first.message)
+      end
+    end
+
+    describe "if debug: true" do
+      let(:debug) { true }
+      it "raises error" do
+        assert_raises(RuntimeError) { result }
+      end
+    end
+
+    describe "if nil is given for a non-null field" do
+      let(:query_string) {%| query noMilk { cow { name cantBeNullButIs } }|}
+      it "turns into error message and nulls the entire selection" do
+        expected = {
+          "data" => { "cow" => nil },
+          "errors" => [
+            {
+              "message" => "Cannot return null for non-nullable field cantBeNullButIs"
+            }
+          ]
+        }
         assert_equal(expected, result)
       end
     end
 
-    describe 'if debug: true' do
-      let(:debug) { true }
-      it 'raises error' do
-        assert_raises(RuntimeError) { result }
+    describe "if an execution error is raised for a non-null field" do
+      let(:query_string) {%| query noMilk { cow { name cantBeNullButRaisesExecutionError } }|}
+      it "uses provided error message and nulls the entire selection" do
+        expected = {
+          "data" => { "cow" => nil },
+          "errors" => [
+            {
+              "message" => "BOOM",
+              "locations" => [ { "line" => 1, "column" => 28 } ]
+            }
+          ]
+        }
+        assert_equal(expected, result)
       end
     end
 
@@ -190,6 +228,26 @@ describe GraphQL::Query::Executor do
       end
     end
 
+    describe "for required input objects" do
+      let(:variables) { { } }
+      let(:query_string) {%| mutation M($input: ReplaceValuesInput!) { replaceValues(input: $input) } |}
+      it "returns a variable validation error" do
+        expected = {
+          "errors"=>[
+            {
+              "message" => "Variable input of type ReplaceValuesInput! was provided invalid value",
+              "locations" => [{ "line" => 1, "column" => 13 }],
+              "value" => nil,
+              "problems" => [
+                { "path" => [], "explanation" => "Expected value to not be null" }
+              ]
+            }
+          ]
+        }
+        assert_equal(expected, result)
+      end
+    end
+
     describe "for required input object fields" do
       let(:variables) { {"input" => {} } }
       let(:query_string) {%| mutation M($input: ReplaceValuesInput!) { replaceValues(input: $input) } |}
@@ -197,8 +255,12 @@ describe GraphQL::Query::Executor do
         expected = {
           "errors"=>[
             {
-              "message" => "Variable input of type ReplaceValuesInput! was provided invalid value {}",
-              "locations" => [{"line"=>1, "column"=>14}]
+              "message" => "Variable input of type ReplaceValuesInput! was provided invalid value",
+              "locations" => [{ "line" => 1, "column" => 13 }],
+              "value" => {},
+              "problems" => [
+                { "path" => ["values"], "explanation" => "Expected value to not be null" }
+              ]
             }
           ]
         }
@@ -213,8 +275,13 @@ describe GraphQL::Query::Executor do
         expected = {
           "errors"=>[
             {
-              "message" => "Variable input of type [DairyProductInput] was provided invalid value [{\"foo\":\"bar\"}]",
-              "locations" => [{"line"=>1, "column"=>11}]
+              "message" => "Variable input of type [DairyProductInput] was provided invalid value",
+              "locations" => [{ "line" => 1, "column" => 10 }],
+              "value" => [{ "foo" => "bar" }],
+              "problems" => [
+                { "path" => [0, "foo"], "explanation" => "Field is not defined on DairyProductInput" },
+                { "path" => [0, "source"], "explanation" => "Expected value to not be null" }
+              ]
             }
           ]
         }

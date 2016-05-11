@@ -1,6 +1,6 @@
-require 'spec_helper'
+require "spec_helper"
 
-describe GraphQL::Query::BaseExecution::ValueResolution do
+describe GraphQL::Query::SerialExecution::ValueResolution do
   let(:debug) { false }
   let(:query_root) {
     day_of_week_enum = GraphQL::EnumType.define do
@@ -17,7 +17,7 @@ describe GraphQL::Query::BaseExecution::ValueResolution do
       name "Query"
       field :tomorrow, day_of_week_enum do
         argument :today, day_of_week_enum
-        resolve ->(obj, args, ctx) { (args['today'] + 1) % 7 }
+        resolve ->(obj, args, ctx) { (args["today"] + 1) % 7 }
       end
     end
   }

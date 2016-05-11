@@ -1,4 +1,4 @@
-require 'spec_helper'
+require "spec_helper"
 
 describe GraphQL::Introspection::TypeType do
   let(:query_string) {%|
@@ -12,10 +12,13 @@ describe GraphQL::Introspection::TypeType do
   |}
   let(:result) { DummySchema.execute(query_string, context: {}, variables: {"cheeseId" => 2}) }
   let(:cheese_fields) {[
-    {"name"=>"id",          "isDeprecated" => false, "type" => { "name" => "Non-Null", "ofType" => { "name" => "Int"}}},
+    {"name"=>"deeplyNullableCheese", "isDeprecated"=>false, "type"=>{"name"=>"Cheese", "ofType"=>nil}},
     {"name"=>"flavor",      "isDeprecated" => false, "type" => { "name" => "Non-Null", "ofType" => { "name" => "String"}}},
-    {"name"=>"source",      "isDeprecated" => false, "type" => { "name" => "Non-Null", "ofType" => { "name" => "DairyAnimal"}}},
+    {"name"=>"id",          "isDeprecated" => false, "type" => { "name" => "Non-Null", "ofType" => { "name" => "Int"}}},
+    {"name"=>"nullableCheese", "isDeprecated"=>false, "type"=>{"name"=>"Cheese", "ofType"=>nil}},
+    {"name"=>"origin",      "isDeprecated" => false, "type" => { "name" => "Non-Null", "ofType" => { "name" => "String"}}},
     {"name"=>"similarCheese", "isDeprecated"=>false, "type"=>{"name"=>"Cheese", "ofType"=>nil}},
+    {"name"=>"source",      "isDeprecated" => false, "type" => { "name" => "Non-Null", "ofType" => { "name" => "DairyAnimal"}}},
   ]}
 
   let(:dairy_animals) {[
@@ -23,7 +26,7 @@ describe GraphQL::Introspection::TypeType do
     {"name"=>"GOAT",  "isDeprecated"=> false },
     {"name"=>"SHEEP", "isDeprecated"=> false },
   ]}
-  it 'exposes metadata about types' do
+  it "exposes metadata about types" do
     expected = {"data"=> {
       "cheeseType" => {
         "name"=> "Cheese",
@@ -36,10 +39,11 @@ describe GraphQL::Introspection::TypeType do
           {"name"=>"AnimalProduct"}
         ],
         "fields"=>[
-          {"type"=>{"name"=>"Non-Null", "ofType"=>{"name"=>"ID"}}},
-          {"type"=>{"name"=>"DairyAnimal", "ofType"=>nil}},
           {"type"=>{"name"=>"Non-Null", "ofType"=>{"name"=>"Float"}}},
           {"type"=>{"name"=>"List", "ofType"=>{"name"=>"String"}}},
+          {"type"=>{"name"=>"Non-Null", "ofType"=>{"name"=>"ID"}}},
+          {"type"=>{"name"=>"Non-Null", "ofType"=>{"name"=>"String"}}},
+          {"type"=>{"name"=>"DairyAnimal", "ofType"=>nil}},
         ]
       },
       "dairyAnimal"=>{
@@ -55,7 +59,7 @@ describe GraphQL::Introspection::TypeType do
       "animalProduct" => {
         "name"=>"AnimalProduct",
         "kind"=>"INTERFACE",
-        "possibleTypes"=>[{"name"=>"Cheese"}, {"name"=>"Milk"}],
+        "possibleTypes"=>[{"name"=>"Cheese"}, {"name"=>"Honey"}, {"name"=>"Milk"}],
         "fields"=>[
           {"name"=>"source"},
         ]
@@ -64,7 +68,7 @@ describe GraphQL::Introspection::TypeType do
     assert_equal(expected, result)
   end
 
-  describe 'deprecated fields' do
+  describe "deprecated fields" do
     let(:query_string) {%|
        query introspectionQuery {
          cheeseType:    __type(name: "Cheese") { name, kind, fields(includeDeprecated: true) { name, isDeprecated, type { name, ofType { name } } } }
@@ -72,8 +76,9 @@ describe GraphQL::Introspection::TypeType do
        }
     |}
     let(:deprecated_fields) { {"name"=>"fatContent", "isDeprecated"=>true, "type"=>{"name"=>"Non-Null", "ofType"=>{"name"=>"Float"}}} }
-    it 'can expose deprecated fields' do
-      new_cheese_fields = cheese_fields + [deprecated_fields]
+
+    it "can expose deprecated fields" do
+      new_cheese_fields = ([deprecated_fields] + cheese_fields).sort_by { |f| f["name"] }
       expected = { "data" => {
         "cheeseType" => {
           "name"=> "Cheese",
@@ -89,14 +94,14 @@ describe GraphQL::Introspection::TypeType do
       assert_equal(expected, result)
     end
 
-    describe 'input objects' do
+    describe "input objects" do
       let(:query_string) {%|
          query introspectionQuery {
            __type(name: "DairyProductInput") { name, description, kind, inputFields { name, type { name }, defaultValue } }
          }
       |}
 
-      it 'exposes metadata about input objects' do
+      it "exposes metadata about input objects" do
         expected = { "data" => {
             "__type" => {
               "name"=>"DairyProductInput",
@@ -104,7 +109,9 @@ describe GraphQL::Introspection::TypeType do
               "kind"=>"INPUT_OBJECT",
               "inputFields"=>[
                 {"name"=>"source", "type"=>{ "name" => "Non-Null"}, "defaultValue"=>nil},
-                {"name"=>"fatContent", "type"=>{ "name" => "Float"}, "defaultValue"=>nil}
+                {"name"=>"originDairy", "type"=>{"name"=>"String"}, "defaultValue"=>"\"Sugar Hollow Dairy\""},
+                {"name"=>"fatContent", "type"=>{ "name" => "Float"}, "defaultValue"=>"0.3"},
+                {"name"=>"organic", "type"=>{ "name" => "Boolean"}, "defaultValue"=>"false"},
               ]
             }
           }}

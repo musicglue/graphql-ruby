@@ -1,6 +1,6 @@
 # Executing Queries with `graphql-ruby`
 
-After you define your schema, you can evaluate queries with `GraphQL::Query`.
+After you define your schema, you can evaluate queries with `GraphQL::Schema#execute`.
 
 At the simplest, you can evaluate a query from string against a schema:
 
@@ -40,21 +40,21 @@ SecretStringField = GraphQL::Field.new do |f|
 end
 ```
 
-Note that `ctx` is not the _same_ hash that's passed to `GraphQL::Query.new`. `ctx` is an instance of `GraphQL::Query::Context`, which exposes the provided hash and may _also_ contain other information about the query.
+Note that `ctx` is not the _same_ hash that's passed to `GraphQL::Schema#execute`. `ctx` is an instance of `GraphQL::Query::Context`, which exposes the provided hash and may _also_ contain other information about the query.
 
 ## Operation name
 
 If your query contains multiple operations, you _must_ pass the operation name with the `operation_name:` keyword:
 
 ```ruby
-result = MySchema.execute(query_string, context: {operation_name: "getPersonInfo"})
+result = MySchema.execute(query_string, operation_name: "getPersonInfo")
 ```
 
 If you don't, you'll get an error.
 
 ## Debug
 
-By default, `GraphQL::Query` rescues any error during execution and puts it in the response's `"errors"` key. You can disable this with `debug: true`, which will cause any error to be raised.
+By default, `graphql-ruby` rescues any error during execution and puts it in the response's `"errors"` key. You can disable this with `debug: true`, which will cause any error to be raised.
 
 ```ruby
 result = MySchema.execute(query_string, debug: true)
@@ -62,17 +62,41 @@ result = MySchema.execute(query_string, debug: true)
 
 ## Validation
 
-By default, `GraphQL::Query` performs validation on incoming query strings. If you want to disable this, pass `validate: false`. No guarantees it won't blow up :)
+By default, `graphql-ruby` performs validation on incoming query strings. If you want to disable this, pass `validate: false`. No guarantees it won't blow up :)
 
 ```ruby
 result = MySchema.execute(query_string, validate: false)
 ```
 
+## Max Depth
+
+To prevent excessive queries, you can define a default max depth on your schema. For example:
+
+```ruby
+MySchema = GraphQL::Schema.new(
+  # ...
+  max_depth: 6
+)
+```
+
+You can also provide a value when executing a query. If present, it overrides the default. For example:
+
+```ruby
+if current_user.admin?
+  max_depth = 10
+else
+  # Fall back to schema's default:
+  max_depth = nil
+end
+
+MySchema.execute(query_string, max_depth: max_depth)
+```
+
 ## Custom Execution Strategies
 
-`graphql` includes a couple of execution strategies, but you can also create custom strategies to support advanced behavior. See `BaseExecution` for the required methods `#initialize` and [`#execute(operation_name, root_type, query)`](http://www.rubydoc.info/github/rmosolgo/graphql-ruby/master/GraphQL/Query/BaseExecution#execute-instance_method)
+`graphql` includes a serial execution strategy, but you can also create custom strategies to support advanced behavior. See `GraphQL::SerialExecution#execute` the required behavior.
 
-Then, set your schema to use your custom execution strategy with `#mutation_execution_strategy` or `#query_execution_strategy`
+Then, set your schema to use your custom execution strategy with `GraphQL::Schema#mutation_execution_strategy` or `GraphQL::Schema#query_execution_strategy`
 
 For example:
 
